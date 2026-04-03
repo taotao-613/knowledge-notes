@@ -2,6 +2,8 @@
 
 // 打开表单
 function openSimpleForm(type, inputId) {
+    console.log('打开表单，类型:', type);
+    
     const isBook = type === 'book';
     const title = isBook ? '📚 添加书籍' : '🎬 添加电影';
     
@@ -21,7 +23,7 @@ function openSimpleForm(type, inputId) {
                 <div class="flex-1 p-4 overflow-y-auto space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">标题 *</label>
-                        <input type="text" id="sf-title" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="${isBook ? '书名' : '电影名'}" autofocus>
+                        <input type="text" id="sf-title" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="${isBook ? '书名' : '电影名'}">
                     </div>
                     
                     <div>
@@ -53,7 +55,17 @@ function openSimpleForm(type, inputId) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', formHtml);
-    setTimeout(() => document.getElementById('sf-title').focus(), 100);
+    
+    // 等待 DOM 渲染后再聚焦
+    setTimeout(() => {
+        const titleInput = document.getElementById('sf-title');
+        if (titleInput) {
+            titleInput.focus();
+            console.log('表单已打开，焦点已设置');
+        } else {
+            console.error('找不到标题输入框');
+        }
+    }, 200);
 }
 
 // 关闭表单
@@ -71,19 +83,33 @@ async function saveSimpleForm(type, inputId) {
     console.log('输入 ID:', inputId);
     
     try {
-        const title = document.getElementById('sf-title').value.trim();
+        // 等待 DOM 完全渲染
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const titleEl = document.getElementById('sf-title');
+        const authorEl = document.getElementById('sf-author');
+        const publisherEl = document.getElementById('sf-publisher');
+        const ratingEl = document.getElementById('sf-rating');
+        const summaryEl = document.getElementById('sf-summary');
+        
+        if (!titleEl) {
+            alert('❌ 表单未正确加载，请刷新页面重试');
+            return;
+        }
+        
+        const title = titleEl.value.trim();
         console.log('标题:', title);
         
         if (!title) {
             alert('请填写标题');
-            document.getElementById('sf-title').focus();
+            titleEl.focus();
             return;
         }
         
-        const author = document.getElementById('sf-author').value.trim();
-        const publisher = document.getElementById('sf-publisher').value.trim();
-        const rating = document.getElementById('sf-rating').value.trim();
-        const summary = document.getElementById('sf-summary').value.trim();
+        const author = authorEl ? authorEl.value.trim() : '';
+        const publisher = publisherEl ? publisherEl.value.trim() : '';
+        const rating = ratingEl ? ratingEl.value.trim() : '';
+        const summary = summaryEl ? summaryEl.value.trim() : '';
         
         console.log('作者:', author);
         console.log('出版社:', publisher);
