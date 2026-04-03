@@ -234,12 +234,12 @@ ${summary || '待补充'}
         
         console.log('内容生成完成');
         
-        // 调用 AI 生成标签
+        // 调用 MiniMax AI 生成标签
         let tags = [isBook ? '读书' : '电影'];
         let aiSummary = finalSummary ? finalSummary.substring(0, 50) + '...' : '';
         
         if (apiKey) {
-            console.log('调用 AI 生成标签...');
+            console.log('调用 MiniMax AI 生成标签...');
             try {
                 const prompt = `为"${finalTitle}"生成 3 个标签和 50 字摘要，JSON 格式：{"tags":["标签 1"],"summary":"摘要"}`;
                 
@@ -247,37 +247,40 @@ ${summary || '待补充'}
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 秒超时
                 
-                const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+                // 使用 MiniMax API
+                const response = await fetch('https://api.minimax.chat/v1/text/chatcompletion_v2', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${apiKey}`
                     },
                     body: JSON.stringify({
-                        model: 'qwen3.5-plus',
-                        messages: [{ role: 'user', content: prompt }]
+                        model: 'MiniMax-Text-01',
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: 0.7
                     }),
                     signal: controller.signal
                 });
                 
                 clearTimeout(timeoutId);
-                console.log('AI 响应状态:', response.status);
+                console.log('MiniMax 响应状态:', response.status);
                 
                 if (response.status === 401) {
                     console.error('API Key 无效');
-                    alert('⚠️ API Key 无效，请在设置中重新配置');
+                    alert('⚠️ API Key 无效，请确认使用的是 MiniMax API Key');
                 } else if (response.ok) {
                     const data = await response.json();
-                    const text = data.choices[0].message.content;
+                    console.log('MiniMax 响应:', data);
+                    const text = data.choices?.[0]?.message?.content || '';
                     const match = text.match(/\{[\s\S]*\}/);
                     if (match) {
                         const result = JSON.parse(match[0]);
                         if (result.tags) tags = result.tags;
                         if (result.summary) aiSummary = result.summary;
-                        console.log('AI 生成成功:', tags, aiSummary);
+                        console.log('MiniMax 生成成功:', tags, aiSummary);
                     }
                 } else {
-                    console.warn('AI 请求失败，使用默认标签');
+                    console.warn('MiniMax 请求失败，使用默认标签');
                 }
             } catch (e) {
                 if (e.name === 'AbortError') {
