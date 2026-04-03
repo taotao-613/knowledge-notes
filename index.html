@@ -137,13 +137,22 @@
                     <input 
                         type="text" 
                         id="douban-url"
-                        placeholder="粘贴豆瓣链接（书/电影）" 
+                        placeholder="粘贴豆瓣链接或输入 ID" 
                         class="w-full px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm mb-2"
                     >
+                    <div class="flex gap-2 mb-2">
+                        <button onclick="setDoubanType('book')" id="type-book" class="flex-1 bg-pink-100 text-pink-700 py-1.5 rounded-lg text-sm font-medium border-2 border-pink-300">
+                            📚 书籍
+                        </button>
+                        <button onclick="setDoubanType('movie')" id="type-movie" class="flex-1 bg-blue-100 text-blue-700 py-1.5 rounded-lg text-sm font-medium border-2 border-transparent">
+                            🎬 电影
+                        </button>
+                    </div>
                     <button onclick="importFromDouban()" id="douban-import-btn" class="w-full bg-green-500 text-white py-2.5 rounded-xl font-medium flex items-center justify-center gap-2">
                         <span>🔗</span>
                         <span>导入豆瓣内容</span>
                     </button>
+                    <p class="text-xs text-gray-400 mt-2">💡 提示：如果链接识别失败，可直接输入数字 ID，例如：37407149</p>
                 </div>
 
                 <!-- AI 整理按钮 -->

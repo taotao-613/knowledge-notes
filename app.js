@@ -4,6 +4,7 @@
 let notes = [];
 let apiKey = localStorage.getItem('qwen_api_key') || '';
 let currentNoteId = null;
+let doubanType = 'book'; // 默认书籍
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,52 +22,87 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// 设置豆瓣类型
+function setDoubanType(type) {
+    doubanType = type;
+    
+    const bookBtn = document.getElementById('type-book');
+    const movieBtn = document.getElementById('type-movie');
+    
+    if (type === 'book') {
+        bookBtn.classList.add('border-pink-300', 'bg-pink-100', 'text-pink-700');
+        bookBtn.classList.remove('border-transparent');
+        movieBtn.classList.remove('border-blue-300', 'bg-blue-100', 'text-blue-700');
+        movieBtn.classList.add('border-transparent');
+    } else {
+        movieBtn.classList.add('border-blue-300', 'bg-blue-100', 'text-blue-700');
+        movieBtn.classList.remove('border-transparent');
+        bookBtn.classList.remove('border-pink-300', 'bg-pink-100', 'text-pink-700');
+        bookBtn.classList.add('border-transparent');
+    }
+}
+
 // 从豆瓣导入
 async function importFromDouban() {
     console.log('开始导入豆瓣内容...');
     
-    let url = document.getElementById('douban-url').value;
+    let input = document.getElementById('douban-url').value;
     
-    if (!url) {
-        alert('请输入豆瓣链接');
+    if (!input) {
+        alert('请输入豆瓣链接或 ID');
         return;
     }
     
-    // 清理链接：去除首尾空格、换行符、零宽字符等
-    url = url.trim()
-        .replace(/[\u200B-\u200D\uFEFF]/g, '')  // 去除零宽字符
-        .replace(/\s+/g, '');  // 去除所有空白字符
+    // 清理输入
+    input = input.trim()
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\s+/g, '');
     
-    console.log('清理后的链接:', url);
+    console.log('清理后的输入:', input);
     
-    // 验证豆瓣链接 - 更宽松的正则
-    const doubanPattern = /douban\.com\/(book|movie)\/subject\/(\d+)/;
-    const match = url.match(doubanPattern);
+    // 尝试提取 ID - 多种方式
+    let subjectId = null;
+    let type = doubanType;
     
-    console.log('匹配结果:', match);
+    // 方式 1: 从完整链接提取
+    const fullMatch = input.match(/douban\.com\/(book|movie)\/subject\/(\d+)/);
+    if (fullMatch) {
+        type = fullMatch[1];
+        subjectId = fullMatch[2];
+        console.log('从完整链接提取:', type, subjectId);
+    }
     
-    if (!match) {
-        // 尝试提取链接中的 ID
-        const idMatch = url.match(/(\d{6,})/);
-        const typeMatch = url.match(/(book|movie)/);
-        
-        if (idMatch && typeMatch) {
-            // 能提取 ID 和类型，直接使用
-            console.log('使用提取的 ID:', idMatch[1], '类型:', typeMatch[1]);
-            await processDoubanImport(typeMatch[1], idMatch[1], url);
-            return;
+    // 方式 2: 只提取数字 ID（如果输入看起来像 ID）
+    if (!subjectId && /^\d{6,}$/.test(input)) {
+        subjectId = input;
+        console.log('直接输入 ID:', subjectId);
+    }
+    
+    // 方式 3: 从任何包含数字的字符串中提取
+    if (!subjectId) {
+        const idMatch = input.match(/(\d{6,})/);
+        if (idMatch) {
+            subjectId = idMatch[1];
+            console.log('从字符串提取 ID:', subjectId);
         }
-        
-        alert('请输入有效的豆瓣链接（书籍或电影）\n\n示例：\nhttps://book.douban.com/subject/37407149/\nhttps://movie.douban.com/subject/1291542/');
+    }
+    
+    // 检查是否找到 ID
+    if (!subjectId) {
+        alert('❌ 无法识别豆瓣链接或 ID\n\n请检查输入是否正确，例如：\n- 完整链接：https://book.douban.com/subject/37407149/\n- 只需 ID: 37407149');
         return;
     }
     
-    const type = match[1];
-    const subjectId = match[2];
+    // 检查 API Key
+    if (!apiKey) {
+        alert('请先在设置中配置 API Key');
+        showSettings();
+        return;
+    }
     
-    console.log('类型:', type, 'ID:', subjectId);
+    console.log('最终类型:', type, 'ID:', subjectId);
     
-    await processDoubanImport(type, subjectId, url);
+    await processDoubanImport(type, subjectId, input);
 }
 
 // 处理豆瓣导入
