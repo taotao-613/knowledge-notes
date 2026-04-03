@@ -89,7 +89,7 @@ function closeSimpleForm() {
     if (addPage) addPage.classList.remove('hidden');
 }
 
-// 保存表单
+// 保存表单 - 带 API 获取
 async function saveSimpleForm(type) {
     const title = document.getElementById('sf-title').value.trim();
     
@@ -102,19 +102,69 @@ async function saveSimpleForm(type) {
     const publisher = document.getElementById('sf-publisher').value.trim();
     const rating = document.getElementById('sf-rating').value.trim();
     const summary = document.getElementById('sf-summary').value.trim();
+    const inputId = document.getElementById('douban-url').value.trim();
+    
+    // 尝试从 Google Books API 获取信息
+    let bookData = null;
+    let loadingMsg = '';
+    
+    if (type === 'book' && inputId) {
+        // 显示加载状态
+        loadingMsg = '正在获取图书信息...';
+        console.log('尝试从 Google Books API 获取...');
+        
+        try {
+            // 先尝试用 ISBN 搜索
+            const isbnMatch = inputId.match(/\d{10,13}/);
+            if (isbnMatch) {
+                const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbnMatch[0]}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.items && data.items.length > 0) {
+                        bookData = data.items[0].volumeInfo;
+                        console.log('通过 ISBN 获取成功:', bookData);
+                    }
+                }
+            }
+            
+            // 如果没找到，尝试用书名搜索
+            if (!bookData && title) {
+                const query = encodeURIComponent(title + (author ? ' ' + author : ''));
+                const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.items && data.items.length > 0) {
+                        bookData = data.items[0].volumeInfo;
+                        console.log('通过书名获取成功:', bookData);
+                    }
+                }
+            }
+        } catch (e) {
+            console.log('Google Books API 失败:', e);
+        }
+    }
+    
+    // 使用 API 数据或手动填写的数据
+    const finalTitle = bookData?.title || title;
+    const finalAuthor = bookData?.authors?.join(', ') || author || '待补充';
+    const finalPublisher = bookData?.publisher || publisher || '待补充';
+    const finalSummary = bookData?.description || summary || '待补充';
+    const finalImage = bookData?.imageLinks?.thumbnail || '';
+    const finalRating = rating || '待评分';
     
     // 构建笔记内容
     const isBook = type === 'book';
     let content = isBook ? 
         `📖 读书笔记
 
-书名：${title}
-作者：${author || '待补充'}
-出版社：${publisher || '待补充'}
-评分：${rating ? '⭐' + rating + '/10' : '待评分'}
+书名：${finalTitle}
+作者：${finalAuthor}
+出版社：${finalPublisher}
+评分：⭐${finalRating}/10
+${finalImage ? `封面：${finalImage}` : ''}
 
 简介：
-${summary || '待补充'}
+${finalSummary}
 
 ---
 📝 我的笔记：
@@ -135,7 +185,7 @@ ${summary || '待补充'}
 电影：${title}
 导演：${author || '待补充'}
 年份：${publisher || '待补充'}
-评分：${rating ? '⭐' + rating + '/10' : '待评分'}
+评分：⭐${rating || '待评分'}/10
 
 简介：
 ${summary || '待补充'}
@@ -157,10 +207,10 @@ ${summary || '待补充'}
     
     // 调用 AI 生成标签
     let tags = [isBook ? '读书' : '电影'];
-    let aiSummary = summary ? summary.substring(0, 50) + '...' : '';
+    let aiSummary = finalSummary ? finalSummary.substring(0, 50) + '...' : '';
     
     try {
-        const prompt = `为"${title}"生成 3 个标签和 50 字摘要，JSON 格式：{"tags":["标签 1"],"summary":"摘要"}`;
+        const prompt = `为"${finalTitle}"生成 3 个标签和 50 字摘要，JSON 格式：{"tags":["标签 1"],"summary":"摘要"}`;
         const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -190,12 +240,16 @@ ${summary || '待补充'}
     // 创建笔记
     const note = {
         id: Date.now(),
-        title: (isBook ? '📚' : '🎬') + ' ' + title,
+        title: (isBook ? '📚' : '🎬') + ' ' + finalTitle,
         content: content,
         timestamp: Date.now(),
         category: isBook ? '读书' : '观影',
         tags: tags,
-        aiSummary: aiSummary
+        aiSummary: aiSummary,
+        metadata: {
+            image: finalImage,
+            source: bookData ? 'google_books' : 'manual'
+        }
     };
     
     notes.push(note);
@@ -205,5 +259,6 @@ ${summary || '待补充'}
     closeSimpleForm();
     document.getElementById('add-note-page').classList.add('hidden');
     
-    alert('✅ 创建成功！\n\n"' + title + '"\n\n已添加到笔记列表');
+    const sourceMsg = bookData ? '\n\n✅ 已从 Google Books 自动获取图书信息' : '';
+    alert('✅ 创建成功！\n\n"' + finalTitle + '"' + sourceMsg + '\n\n已添加到笔记列表');
 }
