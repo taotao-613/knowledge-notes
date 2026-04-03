@@ -324,9 +324,12 @@ ${type === 'book' ? `作者：${data.author?.join(', ') || ''}` : `导演：${da
     }
 }
 
-// 打开手动填写表单
+// 打开手动填写表单 - 优化版
 function openManualDoubanForm(type, url) {
     closeAddPage();
+    
+    const isBook = type === 'book';
+    const title = isBook ? '📚 快速添加书籍' : '🎬 快速添加电影';
     
     const formHtml = `
         <div id="manual-douban-form" class="fixed inset-0 bg-white z-50">
@@ -338,63 +341,97 @@ function openManualDoubanForm(type, url) {
                         </svg>
                         取消
                     </button>
-                    <h2 class="text-lg font-semibold">${type === 'book' ? '📚 手动添加书籍' : '🎬 手动添加电影'}</h2>
+                    <h2 class="text-lg font-semibold">${title}</h2>
                     <button onclick="saveManualDouban('${type}', '${url}')" class="text-indigo-600 font-medium">保存</button>
                 </header>
                 
-                <div class="flex-1 p-4 overflow-y-auto space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">标题</label>
-                        <input type="text" id="manual-title" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <div class="flex-1 p-4 overflow-y-auto">
+                    <!-- 必填项 -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            标题 <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="manual-title" 
+                            placeholder="${isBook ? '书名' : '电影名'}"
+                            class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg"
+                            autofocus
+                        >
                     </div>
                     
-                    ${type === 'book' ? `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">作者</label>
-                        <input type="text" id="manual-author" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">出版社</label>
-                        <input type="text" id="manual-publisher" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <!-- 核心信息 -->
+                    <div class="grid grid-cols-2 gap-3 mb-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">出版年</label>
-                            <input type="text" id="manual-pubdate" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                ${isBook ? '作者' : '导演'}
+                            </label>
+                            <input 
+                                type="text" 
+                                id="manual-${isBook ? 'author' : 'director'}"
+                                placeholder="${isBook ? '作者名' : '导演名'}"
+                                class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">评分</label>
-                            <input type="text" id="manual-rating" placeholder="0-10" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                ${isBook ? '出版社' : '年份'}
+                            </label>
+                            <input 
+                                type="text" 
+                                id="manual-${isBook ? 'publisher' : 'year'}"
+                                placeholder="${isBook ? '出版社' : '2024'}"
+                                class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
                         </div>
-                    </div>
-                    ` : `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">导演</label>
-                        <input type="text" id="manual-director" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">主演</label>
-                        <input type="text" id="manual-cast" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">年份</label>
-                            <input type="text" id="manual-year" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">评分</label>
-                            <input type="text" id="manual-rating" placeholder="0-10" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                    </div>
-                    `}
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">简介</label>
-                        <textarea id="manual-summary" rows="4" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
                     </div>
                     
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <p class="text-sm text-blue-800">💡 提示：豆瓣链接已保存，你可以稍后在笔记中补充完整信息</p>
+                    <!-- 评分 -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            评分
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <input 
+                                type="text" 
+                                id="manual-rating"
+                                placeholder="0-10"
+                                class="w-24 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center"
+                            >
+                            <div class="flex-1 text-sm text-gray-500">
+                                ⭐ 输入 1-10 的数字，例如：8.5
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 简介 -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            简介
+                        </label>
+                        <textarea 
+                            id="manual-summary" 
+                            rows="3"
+                            placeholder="简单描述（可选，AI 会自动补充）"
+                            class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        ></textarea>
+                    </div>
+                    
+                    <!-- 提示 -->
+                    <div class="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-4 mb-4">
+                        <p class="text-sm text-indigo-900 font-medium mb-2">✨ AI 会自动生成：</p>
+                        <ul class="text-sm text-indigo-700 space-y-1">
+                            <li>• 智能标签和分类</li>
+                            <li>• 内容摘要</li>
+                            <li>• 笔记模板（核心观点/金句/思考/行动）</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- 快捷提示 -->
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <p class="text-sm text-amber-800">
+                            💡 <strong>快捷技巧：</strong>从豆瓣复制信息后直接粘贴，AI 会自动识别填充
+                        </p>
                     </div>
                 </div>
             </div>
@@ -402,6 +439,11 @@ function openManualDoubanForm(type, url) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', formHtml);
+    
+    // 自动聚焦到标题输入框
+    setTimeout(() => {
+        document.getElementById('manual-title').focus();
+    }, 100);
 }
 
 // 关闭手动表单
@@ -410,7 +452,7 @@ function closeManualDoubanForm() {
     if (form) form.remove();
 }
 
-// 保存手动填写的内容
+// 保存手动填写的内容 - 优化版
 async function saveManualDouban(type, url) {
     const title = document.getElementById('manual-title').value.trim();
     const summary = document.getElementById('manual-summary').value.trim();
@@ -418,21 +460,40 @@ async function saveManualDouban(type, url) {
     
     if (!title) {
         alert('请填写标题');
+        document.getElementById('manual-title').focus();
         return;
     }
     
+    // 关闭表单
+    closeManualDoubanForm();
+    
+    // 显示加载提示
+    const loadingNote = {
+        id: Date.now(),
+        title: `${type === 'book' ? '📚' : '🎬'} ${title}`,
+        content: '正在生成笔记模板...',
+        timestamp: Date.now(),
+        category: type === 'book' ? '读书' : '观影',
+        tags: ['待整理'],
+        aiSummary: 'AI 正在处理...'
+    };
+    
+    notes.push(loadingNote);
+    saveNotesToLocal();
+    renderNotes();
+    closeAddPage();
+    
+    // 构建基础内容
     let content = '';
     if (type === 'book') {
         const author = document.getElementById('manual-author').value.trim();
         const publisher = document.getElementById('manual-publisher').value.trim();
-        const pubdate = document.getElementById('manual-pubdate').value.trim();
         
         content = `📖 读书笔记
 
 书名：${title}
 作者：${author || '待补充'}
 出版社：${publisher || '待补充'}
-出版年：${pubdate || '待补充'}
 评分：${rating ? `⭐${rating}/10` : '待评分'}
 
 简介：
@@ -442,26 +503,25 @@ ${summary || '待补充'}
 📝 我的笔记：
 
 核心观点：
-
+[AI 帮你总结本书的核心思想]
 
 金句摘录：
-
+[记录触动你的句子]
 
 我的思考：
-
+[你的感悟和联想]
 
 行动清单：
+[可以立即实践的方法]
 `;
     } else {
         const director = document.getElementById('manual-director').value.trim();
-        const cast = document.getElementById('manual-cast').value.trim();
         const year = document.getElementById('manual-year').value.trim();
         
         content = `🎬 观影笔记
 
 电影：${title}
 导演：${director || '待补充'}
-主演：${cast || '待补充'}
 年份：${year || '待补充'}
 评分：${rating ? `⭐${rating}/10` : '待评分'}
 
@@ -472,21 +532,36 @@ ${summary || '待补充'}
 📝 我的笔记：
 
 剧情概要：
-
+[简要描述剧情]
 
 亮点：
-
+[导演手法、演员表演、摄影等]
 
 我的感受：
-
+[观影时的情绪和想法]
 
 推荐指数：
+[是否推荐给别人]
 `;
     }
     
-    // 调用 AI 生成标签
-    let tags = [type === 'book' ? '读书' : '电影'];
+    // 调用 AI 生成标签和摘要
+    let aiTags = [type === 'book' ? '读书' : '电影'];
+    let aiSummary = '';
+    
     try {
+        const aiPrompt = `请为这个${type === 'book' ? '书籍' : '电影'}生成标签和摘要：
+
+标题：${title}
+${type === 'book' ? `作者：${document.getElementById('manual-author').value.trim()}` : `导演：${document.getElementById('manual-director').value.trim()}`}
+${summary ? `简介：${summary}` : ''}
+
+请返回 JSON 格式：
+{
+    "tags": ["标签 1", "标签 2", "标签 3"],
+    "summary": "50 字以内的精彩摘要，突出核心价值"
+}`;
+        
         const aiResponse = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -495,10 +570,7 @@ ${summary || '待补充'}
             },
             body: JSON.stringify({
                 model: 'qwen3.5-plus',
-                messages: [{ 
-                    role: 'user', 
-                    content: `为"${title}"生成 3-5 个标签，返回 JSON 数组格式：["标签 1", "标签 2"]` 
-                }],
+                messages: [{ role: 'user', content: aiPrompt }],
                 temperature: 0.7
             })
         });
@@ -506,34 +578,39 @@ ${summary || '待补充'}
         if (aiResponse.ok) {
             const aiData = await aiResponse.json();
             const aiText = aiData.choices[0].message.content.trim();
-            const jsonMatch = aiText.match(/\[[\s\S]*\]/);
+            const jsonMatch = aiText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-                tags = JSON.parse(jsonMatch[0]);
+                const result = JSON.parse(jsonMatch[0]);
+                aiTags = result.tags || aiTags;
+                aiSummary = result.summary || '';
             }
         }
     } catch (e) {
-        console.log('AI 生成失败');
+        console.log('AI 生成失败，使用默认值');
     }
     
-    const note = {
-        id: Date.now(),
-        title: `${type === 'book' ? '📚' : '🎬'} ${title}`,
-        content: content,
-        timestamp: Date.now(),
-        category: type === 'book' ? '读书' : '观影',
-        tags: tags,
-        aiSummary: summary ? summary.substring(0, 50) + '...' : '待补充',
-        metadata: { type: 'manual', doubanUrl: url }
-    };
+    // 更新笔记
+    const noteIndex = notes.findIndex(n => n.id === loadingNote.id);
+    if (noteIndex !== -1) {
+        notes[noteIndex] = {
+            id: loadingNote.id,
+            title: `${type === 'book' ? '📚' : '🎬'} ${title}`,
+            content: content,
+            timestamp: Date.now(),
+            category: type === 'book' ? '读书' : '观影',
+            tags: aiTags,
+            aiSummary: aiSummary || summary ? summary.substring(0, 50) + '...' : '待补充',
+            metadata: { type: 'manual', doubanUrl: url }
+        };
+        
+        saveNotesToLocal();
+        renderNotes();
+    }
     
-    notes.push(note);
-    saveNotesToLocal();
-    renderNotes();
-    
-    closeManualDoubanForm();
-    closeAddPage();
-    
-    alert('✅ 添加成功！');
+    // 显示成功提示
+    setTimeout(() => {
+        alert(`✅ 笔记创建成功！\n\n"${title}"\n\n已添加到你的知识库\n\nAI 已生成：\n• 智能标签：${aiTags.join(', ')}\n• 笔记模板\n\n现在可以编辑补充完整内容`);
+    }, 300);
 }
 
 // 加载笔记
