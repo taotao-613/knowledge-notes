@@ -32,8 +32,10 @@ async function importFromDouban() {
     
     // 验证豆瓣链接
     const doubanPattern = /douban\.com\/(book|movie)\/subject\/(\d+)/;
-    if (!doubanPattern.test(url)) {
-        alert('请输入有效的豆瓣链接（书籍或电影）');
+    const match = url.match(doubanPattern);
+    
+    if (!match) {
+        alert('请输入有效的豆瓣链接（书籍或电影）\n例如：https://book.douban.com/subject/37407149/');
         return;
     }
     
@@ -43,48 +45,80 @@ async function importFromDouban() {
         return;
     }
     
+    const type = match[1]; // book or movie
+    const subjectId = match[2];
+    
     // 显示加载状态
-    const importBtn = event.target;
+    const importBtn = event.target.closest('button');
     const originalText = importBtn.innerHTML;
-    importBtn.innerHTML = '<div class="loading-spinner inline-block"></div><span class="ml-2">正在抓取...</span>';
+    importBtn.innerHTML = '<div class="loading-spinner inline-block"></div><span class="ml-2">正在获取信息...</span>';
     importBtn.disabled = true;
     
     try {
-        // 提取豆瓣 ID
-        const match = url.match(doubanPattern);
-        const type = match[1]; // book or movie
-        const subjectId = match[2];
+        // 方案 1: 尝试多个 API 源
+        let data = null;
+        const apiSources = [
+            `https://api.douban.com/v2/${type}/${subjectId}`,
+            `https://douban-api.uomg.com/api/${type}?id=${subjectId}`,
+        ];
         
-        // 调用豆瓣 API
-        const apiUrl = `https://douban.uieee.com/v2/${type}/${subjectId}`;
-        const response = await fetch(apiUrl);
+        for (const apiUrl of apiSources) {
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    data = await response.json();
+                    if (data.title || data.name) break;
+                }
+            } catch (e) {
+                console.log(`API ${apiUrl} 失败，尝试下一个`);
+                continue;
+            }
+        }
         
-        let data;
-        if (response.ok) {
-            data = await response.json();
-        } else {
-            throw new Error('无法获取豆瓣数据，请检查链接是否正确');
+        // 方案 2: 如果 API 都失败，用 AI 根据链接生成（需要用户手动补充）
+        if (!data || !data.title) {
+            const manualInput = confirm('豆瓣 API 暂时不可用，是否手动填写信息？\n\n点击"确定"手动填写，"取消"使用 AI 根据链接推测');
+            
+            if (manualInput) {
+                // 打开手动填写表单
+                openManualDoubanForm(type, url);
+                importBtn.innerHTML = originalText;
+                importBtn.disabled = false;
+                return;
+            } else {
+                // 用 AI 根据链接推测（实际上只能生成模板）
+                data = {
+                    title: `${type === 'book' ? '书籍' : '电影'} ${subjectId}`,
+                    summary: '请稍后手动补充详细信息',
+                    rating: { average: 0 }
+                };
+            }
         }
         
         // 构建笔记内容
-        const title = data.title;
-        const rating = data.rating?.average || 0;
-        const summary = data.summary || data.intro || '';
+        const title = data.title || data.name || '未知';
+        const rating = data.rating?.average || data.rate || 0;
+        const summary = data.summary || data.intro || data.desc || '';
         
         let content = '';
         if (type === 'book') {
             content = `📖 读书笔记
 
 书名：${title}
-作者：${data.author?.join(', ') || '未知'}
-出版社：${data.publisher || ''}
-出版年：${data.pubdate || ''}
-页数：${data.pages || ''}
-ISBN: ${data.isbn13 || ''}
-评分：${'⭐'.repeat(Math.round(rating/2))} ${rating}/10
+作者：${data.author?.join(', ') || data.authors?.join(', ') || '待补充'}
+出版社：${data.publisher || '待补充'}
+出版年：${data.pubdate || data.year || '待补充'}
+页数：${data.pages || '待补充'}
+ISBN: ${data.isbn13 || data.isbn || '待补充'}
+评分：${rating > 0 ? '⭐'.repeat(Math.round(rating/2)) + ` ${rating}/10` : '待评分'}
 
 简介：
-${summary}
+${summary || '待补充'}
 
 ---
 📝 我的笔记：
@@ -104,15 +138,15 @@ ${summary}
             content = `🎬 观影笔记
 
 电影：${title}
-导演：${data.directors?.map(d => d.name).join(', ') || '未知'}
-主演：${data.casts?.map(c => c.name).slice(0, 5).join(', ') || ''}
-年份：${data.year || ''}
-类型：${data.genres?.join(', ') || ''}
-片长：${data.duration || ''}
-评分：${'⭐'.repeat(Math.round(rating/2))} ${rating}/10
+导演：${data.directors?.map(d => d.name).join(', ') || '待补充'}
+主演：${data.casts?.map(c => c.name).slice(0, 5).join(', ') || '待补充'}
+年份：${data.year || '待补充'}
+类型：${data.genres?.join(', ') || '待补充'}
+片长：${data.duration || '待补充'}
+评分：${rating > 0 ? '⭐'.repeat(Math.round(rating/2)) + ` ${rating}/10` : '待评分'}
 
 简介：
-${summary}
+${summary || '待补充'}
 
 ---
 📝 我的笔记：
@@ -134,8 +168,8 @@ ${summary}
         const aiPrompt = `请为这个${type === 'book' ? '书籍' : '电影'}生成标签和摘要：
 
 标题：${title}
-${type === 'book' ? `作者：${data.author?.join(', ')}` : `导演：${data.directors?.map(d => d.name).join(', ')}`}
-简介：${summary.substring(0, 200)}
+${type === 'book' ? `作者：${data.author?.join(', ') || ''}` : `导演：${data.directors?.map(d => d.name).join(', ') || ''}`}
+简介：${summary ? summary.substring(0, 200) : '信息待补充'}
 
 返回 JSON 格式：
 {
@@ -178,7 +212,7 @@ ${type === 'book' ? `作者：${data.author?.join(', ')}` : `导演：${data.dir
             timestamp: Date.now(),
             category: type === 'book' ? '读书' : '观影',
             tags: aiResult.tags || [type === 'book' ? '读书' : '电影'],
-            aiSummary: aiResult.summary || summary.substring(0, 50) + '...',
+            aiSummary: aiResult.summary || (summary ? summary.substring(0, 50) + '...' : '待补充'),
             metadata: { type: 'douban', doubanId: subjectId, url: url, rating: rating }
         };
         
@@ -190,14 +224,226 @@ ${type === 'book' ? `作者：${data.author?.join(', ')}` : `导演：${data.dir
         document.getElementById('douban-url').value = '';
         closeAddPage();
         
-        alert(`✅ 导入成功！\n\n${title}\n已添加到笔记`);
+        alert(`✅ 导入成功！\n\n${title}\n已添加到笔记\n\n提示：部分内容可能需要手动补充`);
         
     } catch (error) {
-        alert('导入失败：' + error.message);
+        alert('导入失败：' + error.message + '\n\n建议：稍后重试，或手动创建笔记');
     } finally {
         importBtn.innerHTML = originalText;
         importBtn.disabled = false;
     }
+}
+
+// 打开手动填写表单
+function openManualDoubanForm(type, url) {
+    closeAddPage();
+    
+    const formHtml = `
+        <div id="manual-douban-form" class="fixed inset-0 bg-white z-50">
+            <div class="max-w-lg mx-auto h-full flex flex-col">
+                <header class="px-4 py-3 border-b flex items-center justify-between">
+                    <button onclick="closeManualDoubanForm()" class="text-gray-600 flex items-center gap-1">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        取消
+                    </button>
+                    <h2 class="text-lg font-semibold">${type === 'book' ? '📚 手动添加书籍' : '🎬 手动添加电影'}</h2>
+                    <button onclick="saveManualDouban('${type}', '${url}')" class="text-indigo-600 font-medium">保存</button>
+                </header>
+                
+                <div class="flex-1 p-4 overflow-y-auto space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">标题</label>
+                        <input type="text" id="manual-title" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    
+                    ${type === 'book' ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">作者</label>
+                        <input type="text" id="manual-author" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">出版社</label>
+                        <input type="text" id="manual-publisher" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">出版年</label>
+                            <input type="text" id="manual-pubdate" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">评分</label>
+                            <input type="text" id="manual-rating" placeholder="0-10" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+                    ` : `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">导演</label>
+                        <input type="text" id="manual-director" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">主演</label>
+                        <input type="text" id="manual-cast" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">年份</label>
+                            <input type="text" id="manual-year" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">评分</label>
+                            <input type="text" id="manual-rating" placeholder="0-10" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+                    `}
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">简介</label>
+                        <textarea id="manual-summary" rows="4" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    </div>
+                    
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p class="text-sm text-blue-800">💡 提示：豆瓣链接已保存，你可以稍后在笔记中补充完整信息</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', formHtml);
+}
+
+// 关闭手动表单
+function closeManualDoubanForm() {
+    const form = document.getElementById('manual-douban-form');
+    if (form) form.remove();
+}
+
+// 保存手动填写的内容
+async function saveManualDouban(type, url) {
+    const title = document.getElementById('manual-title').value.trim();
+    const summary = document.getElementById('manual-summary').value.trim();
+    const rating = document.getElementById('manual-rating').value.trim();
+    
+    if (!title) {
+        alert('请填写标题');
+        return;
+    }
+    
+    let content = '';
+    if (type === 'book') {
+        const author = document.getElementById('manual-author').value.trim();
+        const publisher = document.getElementById('manual-publisher').value.trim();
+        const pubdate = document.getElementById('manual-pubdate').value.trim();
+        
+        content = `📖 读书笔记
+
+书名：${title}
+作者：${author || '待补充'}
+出版社：${publisher || '待补充'}
+出版年：${pubdate || '待补充'}
+评分：${rating ? `⭐${rating}/10` : '待评分'}
+
+简介：
+${summary || '待补充'}
+
+---
+📝 我的笔记：
+
+核心观点：
+
+
+金句摘录：
+
+
+我的思考：
+
+
+行动清单：
+`;
+    } else {
+        const director = document.getElementById('manual-director').value.trim();
+        const cast = document.getElementById('manual-cast').value.trim();
+        const year = document.getElementById('manual-year').value.trim();
+        
+        content = `🎬 观影笔记
+
+电影：${title}
+导演：${director || '待补充'}
+主演：${cast || '待补充'}
+年份：${year || '待补充'}
+评分：${rating ? `⭐${rating}/10` : '待评分'}
+
+简介：
+${summary || '待补充'}
+
+---
+📝 我的笔记：
+
+剧情概要：
+
+
+亮点：
+
+
+我的感受：
+
+
+推荐指数：
+`;
+    }
+    
+    // 调用 AI 生成标签
+    let tags = [type === 'book' ? '读书' : '电影'];
+    try {
+        const aiResponse = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'qwen3.5-plus',
+                messages: [{ 
+                    role: 'user', 
+                    content: `为"${title}"生成 3-5 个标签，返回 JSON 数组格式：["标签 1", "标签 2"]` 
+                }],
+                temperature: 0.7
+            })
+        });
+        
+        if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            const aiText = aiData.choices[0].message.content.trim();
+            const jsonMatch = aiText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                tags = JSON.parse(jsonMatch[0]);
+            }
+        }
+    } catch (e) {
+        console.log('AI 生成失败');
+    }
+    
+    const note = {
+        id: Date.now(),
+        title: `${type === 'book' ? '📚' : '🎬'} ${title}`,
+        content: content,
+        timestamp: Date.now(),
+        category: type === 'book' ? '读书' : '观影',
+        tags: tags,
+        aiSummary: summary ? summary.substring(0, 50) + '...' : '待补充',
+        metadata: { type: 'manual', doubanUrl: url }
+    };
+    
+    notes.push(note);
+    saveNotesToLocal();
+    renderNotes();
+    
+    closeManualDoubanForm();
+    closeAddPage();
+    
+    alert('✅ 添加成功！');
 }
 
 // 加载笔记
