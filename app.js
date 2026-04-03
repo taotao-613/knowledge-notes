@@ -21,6 +21,185 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// 从豆瓣导入
+async function importFromDouban() {
+    const url = document.getElementById('douban-url').value.trim();
+    
+    if (!url) {
+        alert('请输入豆瓣链接');
+        return;
+    }
+    
+    // 验证豆瓣链接
+    const doubanPattern = /douban\.com\/(book|movie)\/subject\/(\d+)/;
+    if (!doubanPattern.test(url)) {
+        alert('请输入有效的豆瓣链接（书籍或电影）');
+        return;
+    }
+    
+    if (!apiKey) {
+        alert('请先在设置中配置 API Key');
+        showSettings();
+        return;
+    }
+    
+    // 显示加载状态
+    const importBtn = event.target;
+    const originalText = importBtn.innerHTML;
+    importBtn.innerHTML = '<div class="loading-spinner inline-block"></div><span class="ml-2">正在抓取...</span>';
+    importBtn.disabled = true;
+    
+    try {
+        // 提取豆瓣 ID
+        const match = url.match(doubanPattern);
+        const type = match[1]; // book or movie
+        const subjectId = match[2];
+        
+        // 调用豆瓣 API
+        const apiUrl = `https://douban.uieee.com/v2/${type}/${subjectId}`;
+        const response = await fetch(apiUrl);
+        
+        let data;
+        if (response.ok) {
+            data = await response.json();
+        } else {
+            throw new Error('无法获取豆瓣数据，请检查链接是否正确');
+        }
+        
+        // 构建笔记内容
+        const title = data.title;
+        const rating = data.rating?.average || 0;
+        const summary = data.summary || data.intro || '';
+        
+        let content = '';
+        if (type === 'book') {
+            content = `📖 读书笔记
+
+书名：${title}
+作者：${data.author?.join(', ') || '未知'}
+出版社：${data.publisher || ''}
+出版年：${data.pubdate || ''}
+页数：${data.pages || ''}
+ISBN: ${data.isbn13 || ''}
+评分：${'⭐'.repeat(Math.round(rating/2))} ${rating}/10
+
+简介：
+${summary}
+
+---
+📝 我的笔记：
+
+核心观点：
+
+
+金句摘录：
+
+
+我的思考：
+
+
+行动清单：
+`;
+        } else if (type === 'movie') {
+            content = `🎬 观影笔记
+
+电影：${title}
+导演：${data.directors?.map(d => d.name).join(', ') || '未知'}
+主演：${data.casts?.map(c => c.name).slice(0, 5).join(', ') || ''}
+年份：${data.year || ''}
+类型：${data.genres?.join(', ') || ''}
+片长：${data.duration || ''}
+评分：${'⭐'.repeat(Math.round(rating/2))} ${rating}/10
+
+简介：
+${summary}
+
+---
+📝 我的笔记：
+
+剧情概要：
+
+
+亮点：
+
+
+我的感受：
+
+
+推荐指数：
+`;
+        }
+        
+        // 调用 AI 生成标签和摘要
+        const aiPrompt = `请为这个${type === 'book' ? '书籍' : '电影'}生成标签和摘要：
+
+标题：${title}
+${type === 'book' ? `作者：${data.author?.join(', ')}` : `导演：${data.directors?.map(d => d.name).join(', ')}`}
+简介：${summary.substring(0, 200)}
+
+返回 JSON 格式：
+{
+    "tags": ["标签 1", "标签 2", "标签 3"],
+    "summary": "50 字以内的摘要"
+}`;
+        
+        let aiResult = { tags: [type === 'book' ? '读书' : '电影'], summary: '' };
+        try {
+            const aiResponse = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'qwen3.5-plus',
+                    messages: [{ role: 'user', content: aiPrompt }],
+                    temperature: 0.7
+                })
+            });
+            
+            if (aiResponse.ok) {
+                const aiData = await aiResponse.json();
+                const aiText = aiData.choices[0].message.content.trim();
+                const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    aiResult = JSON.parse(jsonMatch[0]);
+                }
+            }
+        } catch (e) {
+            console.log('AI 生成失败，使用默认值');
+        }
+        
+        // 创建笔记
+        const note = {
+            id: Date.now(),
+            title: `${type === 'book' ? '📚' : '🎬'} ${title}`,
+            content: content,
+            timestamp: Date.now(),
+            category: type === 'book' ? '读书' : '观影',
+            tags: aiResult.tags || [type === 'book' ? '读书' : '电影'],
+            aiSummary: aiResult.summary || summary.substring(0, 50) + '...',
+            metadata: { type: 'douban', doubanId: subjectId, url: url, rating: rating }
+        };
+        
+        notes.push(note);
+        saveNotesToLocal();
+        renderNotes();
+        
+        // 清空输入框并关闭添加页
+        document.getElementById('douban-url').value = '';
+        closeAddPage();
+        
+        alert(`✅ 导入成功！\n\n${title}\n已添加到笔记`);
+        
+    } catch (error) {
+        alert('导入失败：' + error.message);
+    } finally {
+        importBtn.innerHTML = originalText;
+        importBtn.disabled = false;
+    }
+}
+
 // 加载笔记
 function loadNotes() {
     const saved = localStorage.getItem('knowledge_notes');
