@@ -82,6 +82,13 @@ async function saveSimpleForm(type, inputId) {
     console.log('类型:', type);
     console.log('输入 ID:', inputId);
     
+    // 防止重复点击
+    if (window.isSaving) {
+        console.log('正在保存中，请勿重复点击');
+        return;
+    }
+    window.isSaving = true;
+    
     try {
         // 等待 DOM 完全渲染
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -94,6 +101,7 @@ async function saveSimpleForm(type, inputId) {
         
         if (!titleEl) {
             alert('❌ 表单未正确加载，请刷新页面重试');
+            window.isSaving = false;
             return;
         }
         
@@ -103,6 +111,7 @@ async function saveSimpleForm(type, inputId) {
         if (!title) {
             alert('请填写标题');
             titleEl.focus();
+            window.isSaving = false;
             return;
         }
         
@@ -233,6 +242,11 @@ ${summary || '待补充'}
             console.log('调用 AI 生成标签...');
             try {
                 const prompt = `为"${finalTitle}"生成 3 个标签和 50 字摘要，JSON 格式：{"tags":["标签 1"],"summary":"摘要"}`;
+                
+                // 添加超时控制
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 秒超时
+                
                 const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -242,12 +256,17 @@ ${summary || '待补充'}
                     body: JSON.stringify({
                         model: 'qwen3.5-plus',
                         messages: [{ role: 'user', content: prompt }]
-                    })
+                    }),
+                    signal: controller.signal
                 });
                 
+                clearTimeout(timeoutId);
                 console.log('AI 响应状态:', response.status);
                 
-                if (response.ok) {
+                if (response.status === 401) {
+                    console.error('API Key 无效');
+                    alert('⚠️ API Key 无效，请在设置中重新配置');
+                } else if (response.ok) {
                     const data = await response.json();
                     const text = data.choices[0].message.content;
                     const match = text.match(/\{[\s\S]*\}/);
@@ -257,9 +276,15 @@ ${summary || '待补充'}
                         if (result.summary) aiSummary = result.summary;
                         console.log('AI 生成成功:', tags, aiSummary);
                     }
+                } else {
+                    console.warn('AI 请求失败，使用默认标签');
                 }
             } catch (e) {
-                console.log('AI 失败:', e.message);
+                if (e.name === 'AbortError') {
+                    console.warn('AI 请求超时，使用默认标签');
+                } else {
+                    console.log('AI 失败:', e.message);
+                }
             }
         } else {
             console.log('未配置 API Key，跳过 AI 生成');
@@ -298,5 +323,7 @@ ${summary || '待补充'}
     } catch (error) {
         console.error('保存失败:', error);
         alert('❌ 保存失败：' + error.message + '\n\n请打开浏览器控制台查看详细错误信息');
+    } finally {
+        window.isSaving = false;
     }
 }
