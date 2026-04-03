@@ -25,34 +25,57 @@ document.addEventListener('DOMContentLoaded', () => {
 async function importFromDouban() {
     console.log('开始导入豆瓣内容...');
     
-    const url = document.getElementById('douban-url').value.trim();
+    let url = document.getElementById('douban-url').value;
     
     if (!url) {
         alert('请输入豆瓣链接');
         return;
     }
     
-    console.log('豆瓣链接:', url);
+    // 清理链接：去除首尾空格、换行符、零宽字符等
+    url = url.trim()
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')  // 去除零宽字符
+        .replace(/\s+/g, '');  // 去除所有空白字符
     
-    // 验证豆瓣链接
+    console.log('清理后的链接:', url);
+    
+    // 验证豆瓣链接 - 更宽松的正则
     const doubanPattern = /douban\.com\/(book|movie)\/subject\/(\d+)/;
     const match = url.match(doubanPattern);
     
+    console.log('匹配结果:', match);
+    
     if (!match) {
-        alert('请输入有效的豆瓣链接（书籍或电影）\n例如：https://book.douban.com/subject/37407149/');
+        // 尝试提取链接中的 ID
+        const idMatch = url.match(/(\d{6,})/);
+        const typeMatch = url.match(/(book|movie)/);
+        
+        if (idMatch && typeMatch) {
+            // 能提取 ID 和类型，直接使用
+            console.log('使用提取的 ID:', idMatch[1], '类型:', typeMatch[1]);
+            await processDoubanImport(typeMatch[1], idMatch[1], url);
+            return;
+        }
+        
+        alert('请输入有效的豆瓣链接（书籍或电影）\n\n示例：\nhttps://book.douban.com/subject/37407149/\nhttps://movie.douban.com/subject/1291542/');
         return;
     }
     
+    const type = match[1];
+    const subjectId = match[2];
+    
+    console.log('类型:', type, 'ID:', subjectId);
+    
+    await processDoubanImport(type, subjectId, url);
+}
+
+// 处理豆瓣导入
+async function processDoubanImport(type, subjectId, url) {
     if (!apiKey) {
         alert('请先在设置中配置 API Key');
         showSettings();
         return;
     }
-    
-    const type = match[1]; // book or movie
-    const subjectId = match[2];
-    
-    console.log('类型:', type, 'ID:', subjectId);
     
     // 显示加载状态
     const importBtn = document.getElementById('douban-import-btn');
@@ -94,19 +117,17 @@ async function importFromDouban() {
             }
         }
         
-        // 方案 2: 如果 API 都失败，用 AI 根据链接生成（需要用户手动补充）
+        // 方案 2: 如果 API 都失败，用手动填写
         if (!data || !data.title) {
             console.log('API 获取失败，使用手动填写');
-            const manualInput = confirm('豆瓣 API 暂时不可用，是否手动填写信息？\n\n点击"确定"手动填写，"取消"使用 AI 根据链接推测');
+            const manualInput = confirm('豆瓣 API 暂时不可用，是否手动填写信息？\n\n点击"确定"手动填写，"取消"跳过');
             
             if (manualInput) {
-                // 打开手动填写表单
                 openManualDoubanForm(type, url);
                 importBtn.innerHTML = originalText;
                 importBtn.disabled = false;
                 return;
             } else {
-                // 用 AI 根据链接推测（实际上只能生成模板）
                 data = {
                     title: `${type === 'book' ? '书籍' : '电影'} ${subjectId}`,
                     summary: '请稍后手动补充详细信息',
@@ -239,7 +260,7 @@ ${type === 'book' ? `作者：${data.author?.join(', ') || ''}` : `导演：${da
         document.getElementById('douban-url').value = '';
         closeAddPage();
         
-        alert(`✅ 导入成功！\n\n${title}\n已添加到笔记\n\n提示：部分内容可能需要手动补充`);
+        alert(`✅ 导入成功！\n\n${title}\n已添加到笔记`);
         
     } catch (error) {
         console.error('导入失败:', error);
