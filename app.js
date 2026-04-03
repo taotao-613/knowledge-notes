@@ -23,12 +23,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 从豆瓣导入
 async function importFromDouban() {
+    console.log('开始导入豆瓣内容...');
+    
     const url = document.getElementById('douban-url').value.trim();
     
     if (!url) {
         alert('请输入豆瓣链接');
         return;
     }
+    
+    console.log('豆瓣链接:', url);
     
     // 验证豆瓣链接
     const doubanPattern = /douban\.com\/(book|movie)\/subject\/(\d+)/;
@@ -48,8 +52,15 @@ async function importFromDouban() {
     const type = match[1]; // book or movie
     const subjectId = match[2];
     
+    console.log('类型:', type, 'ID:', subjectId);
+    
     // 显示加载状态
-    const importBtn = event.target.closest('button');
+    const importBtn = document.getElementById('douban-import-btn');
+    if (!importBtn) {
+        alert('找不到导入按钮，请刷新页面重试');
+        return;
+    }
+    
     const originalText = importBtn.innerHTML;
     importBtn.innerHTML = '<div class="loading-spinner inline-block"></div><span class="ml-2">正在获取信息...</span>';
     importBtn.disabled = true;
@@ -64,24 +75,28 @@ async function importFromDouban() {
         
         for (const apiUrl of apiSources) {
             try {
+                console.log('尝试 API:', apiUrl);
                 const response = await fetch(apiUrl, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json'
                     }
                 });
+                console.log('API 响应状态:', response.status);
                 if (response.ok) {
                     data = await response.json();
+                    console.log('获取到数据:', data);
                     if (data.title || data.name) break;
                 }
             } catch (e) {
-                console.log(`API ${apiUrl} 失败，尝试下一个`);
+                console.log(`API ${apiUrl} 失败:`, e.message);
                 continue;
             }
         }
         
         // 方案 2: 如果 API 都失败，用 AI 根据链接生成（需要用户手动补充）
         if (!data || !data.title) {
+            console.log('API 获取失败，使用手动填写');
             const manualInput = confirm('豆瓣 API 暂时不可用，是否手动填写信息？\n\n点击"确定"手动填写，"取消"使用 AI 根据链接推测');
             
             if (manualInput) {
@@ -227,6 +242,7 @@ ${type === 'book' ? `作者：${data.author?.join(', ') || ''}` : `导演：${da
         alert(`✅ 导入成功！\n\n${title}\n已添加到笔记\n\n提示：部分内容可能需要手动补充`);
         
     } catch (error) {
+        console.error('导入失败:', error);
         alert('导入失败：' + error.message + '\n\n建议：稍后重试，或手动创建笔记');
     } finally {
         importBtn.innerHTML = originalText;
