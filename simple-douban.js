@@ -102,15 +102,12 @@ async function saveSimpleForm(type) {
     const publisher = document.getElementById('sf-publisher').value.trim();
     const rating = document.getElementById('sf-rating').value.trim();
     const summary = document.getElementById('sf-summary').value.trim();
-    const inputId = document.getElementById('douban-url').value.trim();
+    const inputId = document.getElementById('douban-url')?.value.trim() || '';
     
     // 尝试从 Google Books API 获取信息
     let bookData = null;
-    let loadingMsg = '';
     
     if (type === 'book' && inputId) {
-        // 显示加载状态
-        loadingMsg = '正在获取图书信息...';
         console.log('尝试从 Google Books API 获取...');
         
         try {
@@ -257,7 +254,8 @@ ${summary || '待补充'}
     renderNotes();
     
     closeSimpleForm();
-    document.getElementById('add-note-page').classList.add('hidden');
+    const addPage = document.getElementById('add-note-page');
+    if (addPage) addPage.classList.add('hidden');
     
     const sourceMsg = bookData ? '\n\n✅ 已从 Google Books 自动获取图书信息' : '';
     alert('✅ 创建成功！\n\n"' + finalTitle + '"' + sourceMsg + '\n\n已添加到笔记列表');
