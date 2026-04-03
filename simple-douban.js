@@ -1,32 +1,7 @@
-// 简化的豆瓣导入功能 - 确保能用
+// 简化的图书/电影添加功能
 
-// 设置豆瓣类型
-function setDoubanType(type) {
-    window.doubanType = type;
-    
-    const bookBtn = document.getElementById('type-book');
-    const movieBtn = document.getElementById('type-movie');
-    
-    if (type === 'book') {
-        bookBtn.className = 'flex-1 bg-pink-100 text-pink-700 py-1.5 rounded-lg text-sm font-medium border-2 border-pink-300';
-        movieBtn.className = 'flex-1 bg-gray-100 text-gray-500 py-1.5 rounded-lg text-sm font-medium border-2 border-transparent';
-    } else {
-        movieBtn.className = 'flex-1 bg-blue-100 text-blue-700 py-1.5 rounded-lg text-sm font-medium border-2 border-blue-300';
-        bookBtn.className = 'flex-1 bg-gray-100 text-gray-500 py-1.5 rounded-lg text-sm font-medium border-2 border-transparent';
-    }
-}
-
-// 从豆瓣导入 - 简化版
-async function importFromDouban() {
-    const input = document.getElementById('douban-url').value.trim();
-    const type = window.doubanType || 'book';
-    
-    // 直接打开手动填写表单
-    openSimpleForm(type, input);
-}
-
-// 打开简化表单
-function openSimpleForm(type, input) {
+// 打开表单
+function openSimpleForm(type, inputId) {
     const isBook = type === 'book';
     const title = isBook ? '📚 添加书籍' : '🎬 添加电影';
     
@@ -40,7 +15,7 @@ function openSimpleForm(type, input) {
                 <header class="px-4 py-3 border-b flex items-center justify-between">
                     <button onclick="closeSimpleForm()" class="text-gray-600">✕ 取消</button>
                     <h2 class="text-lg font-semibold">${title}</h2>
-                    <button onclick="saveSimpleForm('${type}')" class="text-indigo-600 font-medium">保存</button>
+                    <button onclick="saveSimpleForm('${type}', '${inputId}')" class="text-indigo-600 font-medium">保存</button>
                 </header>
                 
                 <div class="flex-1 p-4 overflow-y-auto space-y-4">
@@ -89,8 +64,8 @@ function closeSimpleForm() {
     if (addPage) addPage.classList.remove('hidden');
 }
 
-// 保存表单 - 带 API 获取
-async function saveSimpleForm(type) {
+// 保存表单
+async function saveSimpleForm(type, inputId) {
     const title = document.getElementById('sf-title').value.trim();
     
     if (!title) {
@@ -102,12 +77,11 @@ async function saveSimpleForm(type) {
     const publisher = document.getElementById('sf-publisher').value.trim();
     const rating = document.getElementById('sf-rating').value.trim();
     const summary = document.getElementById('sf-summary').value.trim();
-    const inputId = document.getElementById('douban-url')?.value.trim() || '';
     
-    // 尝试从 Google Books API 获取信息
+    // 尝试从 Google Books API 获取信息（仅书籍）
     let bookData = null;
     
-    if (type === 'book' && inputId) {
+    if (type === 'book') {
         console.log('尝试从 Google Books API 获取...');
         
         try {
