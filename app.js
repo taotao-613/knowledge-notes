@@ -44,12 +44,19 @@ function setDoubanType(type) {
 
 // 从豆瓣导入
 async function importFromDouban() {
-    console.log('开始导入豆瓣内容...');
+    // 清除之前的错误，显示调试信息
+    console.clear();
+    console.log('===== 豆瓣导入调试开始 =====');
+    console.log('时间:', new Date().toLocaleString());
     
     let input = document.getElementById('douban-url').value;
     
+    console.log('1. 原始输入:', JSON.stringify(input));
+    console.log('2. 输入长度:', input.length);
+    console.log('3. 输入字符码:', Array.from(input).map(c => c.charCodeAt(0)));
+    
     if (!input) {
-        alert('请输入豆瓣链接或 ID');
+        alert('❌ 请输入豆瓣链接或 ID');
         return;
     }
     
@@ -58,7 +65,8 @@ async function importFromDouban() {
         .replace(/[\u200B-\u200D\uFEFF]/g, '')
         .replace(/\s+/g, '');
     
-    console.log('清理后的输入:', input);
+    console.log('4. 清理后输入:', JSON.stringify(input));
+    console.log('5. 清理后长度:', input.length);
     
     // 尝试提取 ID - 多种方式
     let subjectId = null;
@@ -66,41 +74,50 @@ async function importFromDouban() {
     
     // 方式 1: 从完整链接提取
     const fullMatch = input.match(/douban\.com\/(book|movie)\/subject\/(\d+)/);
+    console.log('6. 完整链接匹配:', fullMatch);
     if (fullMatch) {
         type = fullMatch[1];
         subjectId = fullMatch[2];
-        console.log('从完整链接提取:', type, subjectId);
+        console.log('✅ 从完整链接提取 - 类型:', type, 'ID:', subjectId);
     }
     
     // 方式 2: 只提取数字 ID（如果输入看起来像 ID）
     if (!subjectId && /^\d{6,}$/.test(input)) {
         subjectId = input;
-        console.log('直接输入 ID:', subjectId);
+        console.log('✅ 直接输入 ID - ID:', subjectId);
     }
     
     // 方式 3: 从任何包含数字的字符串中提取
     if (!subjectId) {
         const idMatch = input.match(/(\d{6,})/);
+        console.log('7. 数字 ID 匹配:', idMatch);
         if (idMatch) {
             subjectId = idMatch[1];
-            console.log('从字符串提取 ID:', subjectId);
+            console.log('✅ 从字符串提取 ID - ID:', subjectId);
         }
     }
     
     // 检查是否找到 ID
     if (!subjectId) {
-        alert('❌ 无法识别豆瓣链接或 ID\n\n请检查输入是否正确，例如：\n- 完整链接：https://book.douban.com/subject/37407149/\n- 只需 ID: 37407149');
+        console.error('❌ 无法提取 ID');
+        console.log('当前类型设置:', doubanType);
+        alert('❌ 无法识别豆瓣链接或 ID\n\n请检查输入：\n- 完整链接：https://book.douban.com/subject/37407149/\n- 只需 ID: 37407149\n\n已打开浏览器控制台，请查看调试信息');
         return;
     }
     
     // 检查 API Key
     if (!apiKey) {
+        console.error('❌ 未配置 API Key');
         alert('请先在设置中配置 API Key');
         showSettings();
         return;
     }
     
-    console.log('最终类型:', type, 'ID:', subjectId);
+    console.log('===== 准备导入 =====');
+    console.log('类型:', type);
+    console.log('ID:', subjectId);
+    console.log('API Key:', apiKey ? '已配置' : '未配置');
+    console.log('====================');
     
     await processDoubanImport(type, subjectId, input);
 }
